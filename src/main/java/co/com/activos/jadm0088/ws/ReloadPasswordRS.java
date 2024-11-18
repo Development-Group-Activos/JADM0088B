@@ -21,11 +21,15 @@ public class ReloadPasswordRS {
     @Produces(MediaType.APPLICATION_JSON)  
     @Consumes(MediaType.APPLICATION_JSON)   
     public Response createResetRequest(@QueryParam("username") String username) {
+        if (reloadPasswordService.hasPendingRequest(username)) {
+            return Response.status(Response.Status.CONFLICT).entity("Ya existe una solicitud pendiente").build();
+        }
+
         String requestId = reloadPasswordService.createPassword(username);
         if (requestId.equals("-1")) {
             return Response.status(Response.Status.BAD_REQUEST).entity("Su solicitud no pudo ser procesada").build();
         }
-        return Response.ok(requestId).build();  //guarda el id de la solicitud
+        return Response.ok(requestId).build();  // Guarda el id de la solicitud
     }
 
     // Endpoint para validar una solicitud de restablecimiento de contraseña
