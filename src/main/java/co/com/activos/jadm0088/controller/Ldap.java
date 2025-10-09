@@ -73,5 +73,15 @@ public abstract class Ldap {
         ldapConexion ldap = new ldapConexion();
         return ldap.getContext(); // Llama a la implementación en ldapConexion
     }
+    
+    public static String getUsuarioDominio(String userName) {
+    try {
+        LdapInterface ldap = new ldapConexion();
+        return ldap.getUsuarioDominio(userName);
+    } catch (Exception e) {
+        e.printStackTrace();
+        return null;
+    }
+}
 
 }

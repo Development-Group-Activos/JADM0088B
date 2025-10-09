@@ -323,43 +323,46 @@ public class ldapConexion implements LdapInterface {
         }
         return id;
     }
-
-   /*
+    
     @Override
-    public void sendMail(String destino, String para, String asunto, String contenido) {
+    public String getUsuarioDominio(String userName) {
+        String dominio = null;
         Connection conexion = OracleFactory.getConexion();
-        String error = null;
+
         try {
-            String ConsultaSql;
-            ConsultaSql = "{ call SENDMAIL(?,?,?,?,?,?,?,?,?) }";
-            CallableStatement callableStatement = conexion.prepareCall(ConsultaSql);
-            callableStatement.setString(1, destino);
-            callableStatement.setString(2, para);
-            callableStatement.setNull(3, OracleTypes.NULL);
-            callableStatement.setNull(4, OracleTypes.NULL);
-            callableStatement.setString(5, asunto);
-            callableStatement.setString(6, contenido);
-            callableStatement.setString(7, "");
-            callableStatement.registerOutParameter(8, OracleTypes.VARCHAR);
-            callableStatement.setString(9, "WEB");
-            callableStatement.execute();
-            error = (String) callableStatement.getString(8);
-            if (error != null) {
-                System.out.println(error);
+            CallableStatement cs = conexion.prepareCall("{ CALL QB_CONSOLA_BMX.PL_USUARIO_DOMINIO(?, ?, ?, ?) }");
+            cs.setString(1, userName);  // Parametro de entrada
+            cs.registerOutParameter(2, OracleTypes.VARCHAR); // Dominio
+            cs.registerOutParameter(3, OracleTypes.VARCHAR); // Estado del proceso
+            cs.registerOutParameter(4, OracleTypes.VARCHAR); // Mensaje del proceso
+
+            cs.execute();
+
+            String estadoProceso = cs.getString(3);
+            String mensajeProceso = cs.getString(4);
+
+            if ("OK".equals(estadoProceso)) {
+                dominio = cs.getString(2);
+            } else {
+                System.out.println("Error en PL_USUARIO_DOMINIO: " + mensajeProceso);
             }
-            callableStatement.close();
-        } catch (SQLException e) { // TODO Auto-generated
+
+            cs.close();
+        } catch (SQLException e) {
             e.printStackTrace();
-            throw new FacesException(e);
+            System.out.println("Error al ejecutar PL_USUARIO_DOMINIO: " + e.getMessage());
         } finally {
             try {
-                conexion.close();
+                if (conexion != null) {
+                    conexion.close();
+                }
             } catch (SQLException e) {
                 e.printStackTrace();
             }
         }
+        return dominio;
     }
- */
+    
     @Override
     public void sendMail(String vcDestino, String vcPara, String vcAsunto, String vcContenido) {
         Connection conexion = OracleFactory.getConexion();

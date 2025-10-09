@@ -9,5 +9,5 @@ public interface LdapInterface {
 	public String saveRequest(String userName);
         public String findPropertyByAccountName2(String accountName, String property);
 	public void sendMail(String destino, String para, String asunto, String contenido);
-	
+        public String getUsuarioDominio(String userName);
 }

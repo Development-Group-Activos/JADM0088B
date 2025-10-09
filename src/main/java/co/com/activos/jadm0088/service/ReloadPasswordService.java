@@ -12,27 +12,24 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-
-import java.util.Base64;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.net.URISyntaxException;
-
 import javax.naming.NamingException;
 import javax.naming.directory.Attribute;
 import javax.naming.directory.BasicAttribute;
 import javax.naming.directory.DirContext;
 import javax.naming.directory.ModificationItem;
-
-import co.com.activos.jadm0088.model.Usuario;
 import co.com.activos.jadm0088.model.DominioSAAS;
 import co.com.activos.jadm0088.controller.Ldap;
 import co.com.activos.jadm0088.controller.View;
 import co.com.activos.jadm0088.util.OracleFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+import java.util.Base64;
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import java.util.Base64;
 
 import javax.naming.directory.Attributes;
 
@@ -41,16 +38,39 @@ import javax.naming.directory.Attributes;
  * @author kpaz
  */
 public class ReloadPasswordService {
+    
+    private static final String SECRET_KEY = "JADM0088SECRETKY"; // de 16 caracteres para AES-128 esto lo mando desde el front
+
+    // Método para desencriptar
+    public static String decryptAES(String encryptedText) throws Exception {
+        byte[] keyBytes = SECRET_KEY.getBytes("UTF-8");
+        SecretKey secretKey = new SecretKeySpec(keyBytes, "AES");
+        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+        
+        byte[] decodedBytes = Base64.getDecoder().decode(encryptedText); // Decodificar desde Base64
+        byte[] decryptedBytes = cipher.doFinal(decodedBytes);
+        
+        return new String(decryptedBytes, "UTF-8"); 
+    }
 
     // Guardar la solicitud de restablecimiento de contraseña
-    public String createPassword(String userName) {
+    public String createPassword(String encryptedUserName) throws Exception {
+        String userName = decryptAES(encryptedUserName);
         return Ldap.saveRequest(userName);
     }
     
+    // Buscar dominio
+    public String obtenerDominioUsuario(String userName) {
+    return Ldap.getUsuarioDominio(userName);
+    }
+    
      // validar si ya se crear solicitudes 
-    public boolean hasPendingRequest(String userName) {
+    public boolean hasPendingRequest(String encryptedUserName) throws Exception {
+        
         boolean hasPending = false;
         try (Connection connection = OracleFactory.getConexion()) {
+            String userName = decryptAES(encryptedUserName);
             String query = "SELECT COUNT(*) FROM ADM.RECORDAR_CLAVE_SOLICITUDES WHERE RCS_USER_ID = ? AND RCS_ESTADO = 'M'";
             PreparedStatement ps = connection.prepareStatement(query);
             ps.setString(1, userName);
@@ -66,111 +86,171 @@ public class ReloadPasswordService {
 
     // Validar si la solicitud de restablecimiento es válida
     public String validatePassword(String requestId) {
+        if (!isRequestValid(requestId)) {
+            return "ERROR: Solicitud inválida o expirada.";
+        }   
         return Ldap.reloadPass(requestId);
     }
+    
 
-    // Actualizar la contraseña del usuario
-    public boolean updatePassword(String userName, String newPassword, String requestId, String domain) {
-        List<DominioSAAS> dominios = View.loadDominios(Long.parseLong("1"));     //id=1 DSA_RAMALDAL = ou=Usuarios
+    private boolean isRequestValid(String requestId) {
+        boolean isValid = false;
+        try (Connection connection = OracleFactory.getConexion()) {
+            String query = "SELECT COUNT(*) FROM ADM.RECORDAR_CLAVE_SOLICITUDES WHERE RCS_ID = ? AND RCS_ESTADO = 'P'";
+            PreparedStatement ps = connection.prepareStatement(query);
+            ps.setString(1, requestId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                isValid = rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return isValid;
+    }
+    
+    //  método para buscar usuario por requestId
+    public String getUserByRequestId(String requestId) {
+        String userName = null;
+        try (Connection connection = OracleFactory.getConexion()) {
+            String query = "SELECT RCS_USER_ID FROM ADM.RECORDAR_CLAVE_SOLICITUDES WHERE RCS_ID = ?";
+            PreparedStatement ps = connection.prepareStatement(query);
+            ps.setString(1, requestId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                userName = rs.getString("RCS_USER_ID");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return userName;
+    }
+ 
+
+    
+    
+    private boolean isValidPassword(String password) {
+        if (password == null || password.length() < 8) {
+            return false;
+        }
+
+        boolean hasUpperCase = false;
+        boolean hasLowerCase = false;
+        boolean hasDigit = false;
+        boolean hasSpecialChar = false;
+
+        String specialCharacters = "!@#$%^&*(),.?\":{}|<>";
+
+        for (char c : password.toCharArray()) {
+            if (Character.isUpperCase(c)) {
+                hasUpperCase = true;
+            } else if (Character.isLowerCase(c)) {
+                hasLowerCase = true;
+            } else if (Character.isDigit(c)) {
+                hasDigit = true;
+            } else if (specialCharacters.indexOf(c) != -1) {
+                hasSpecialChar = true;
+            }
+        }
+
+        return hasUpperCase && hasLowerCase && hasDigit && hasSpecialChar;
+    }
+    
+
+        public String updatePassword(String encryptedUserName, String encryptedNewPassword, String requestId, String domain) throws Exception {
+  
+        // Desencriptar valores que llegan desde el frontend
+        String userName = decryptAES(encryptedUserName);
+        String newPassword = decryptAES(encryptedNewPassword);
+
+        // Validaciones: Longitud, mayúsculas, minúsculas, números, caracteres especiales
+        if (!isValidPassword(newPassword)) {
+            return " La nueva contraseña no cumple con los requisitos de seguridad.";
+        }
+    
+        
+ 
+        List<DominioSAAS> dominios = View.loadDominios(Long.parseLong("1"));
         DominioSAAS selectedDomain = null;
-        // Busca el dominio seleccionado
+
         for (DominioSAAS x : dominios) {
             if (domain.equals(x.getDsa_ramaldap())) {
                 selectedDomain = x;
                 break;
             }
         }
-        // Si el dominio es nulo, devuelve error
+
         if (selectedDomain == null) {
-            System.out.println("Error: Dominio no encontrado");
-            return false;
-        }      
-        /////////////////////////////////////////////////////////////////////////////////////////
-        //verificaciones de seguridad para que la nueva contraseña no sea igual a las ultimas 5//
-        //Obtener las últimas 5 contraseñas desde la base de datos
-           List<String> previousPasswords = getLastNPasswords(userName, 5);
+            return "Error: Dominio no encontrado.";
+        }
 
-           // Verificar si la nueva contraseña ya fue utilizada anteriormente
-           String hashedNewPassword = hashPassword(newPassword);
-           if (previousPasswords.contains(hashedNewPassword)) {
-               System.out.println("Error: No puedes reutilizar una de las últimas 5 contraseñas.");
-               return false;
-           }    
-        /////////////////////////////////////////////////////////////////////////////////////////
         
-        // Actualiza la contraseña usando el contexto LDAP
-        boolean isPasswordUpdated = updateLdapPassword(userName, newPassword, selectedDomain.getDsa_ramaldap());
+        // Obtener las últimas 5 contraseñas desde la base de datos
+        List<String> previousPasswords = getLastNPasswords(userName, 5);
+        String hashedNewPassword = hashPassword(newPassword);
 
-        if (isPasswordUpdated) {
-            // Almacenar la nueva contraseña en el historial
+        // Verificar si la nueva contraseña ya fue utilizada
+        if (previousPasswords.contains(hashedNewPassword)) {
+            return "No puedes reutilizar una de las últimas 5 contraseñas anteriores.";
+        }
+
+        // Llamar al método modificado que ahora retorna un mensaje detallado
+        String updateResult = updateLdapPassword(userName, newPassword, selectedDomain.getDsa_ramaldap());
+
+        if (updateResult.equals("Contraseña actualizada correctamente.")) {
             saveNewPasswordToHistory(userName, hashedNewPassword);
-            System.out.println("Contraseña actualizada correctamente.");
-            // Actualizar el estado de la solicitud a 'C' (Cambiada)
-            return Ldap.updateState(requestId).isEmpty();
+            Ldap.updateState(requestId);
+            return updateResult;
         } else {
-            System.out.println("Error al actualizar la contraseña.");
-            return false;
+            return updateResult;
         }
     }
 
         // Método para actualizar la contraseña en LDAP
-        private boolean updateLdapPassword(String userName, String newPassword, String domain) {
+       private String updateLdapPassword(String userName, String newPassword , String domain) {
             try {
-                DirContext ctx = Ldap.getContext(); // Obtiene el contexto de LDAP
+                DirContext ctx = Ldap.getContext();
                 if (ctx == null) {
-                    System.out.println("Error al obtener el contexto LDAP");
-                    return false;
+                    return "Error: No se pudo obtener el contexto LDAP.";
                 }
-
-                // Obtener la contraseña actual
+                
                 String dn = "uid=" + userName + "," + domain + ",dc=activos,dc=com,dc=co";
                 Attributes attrs = ctx.getAttributes(dn, new String[]{"userPassword"});
                 String currentPassword = new String((byte[]) attrs.get("userPassword").get());
-                
-                // Aquí edité: Guardar la contraseña actual en la base de datos antes de la comparación
+
+                // Guardar la contraseña actual en la base de datos antes de la comparación
                 String hashedCurrentPassword = hashPassword(currentPassword);
                 saveNewPasswordToHistory(userName, hashedCurrentPassword);
-                System.out.println("Contraseña actual guardada en la base de datos.");
 
-
-
-                // Verifica si la nueva contraseña es igual a la actual
+                // Validación: la nueva contraseña no puede ser igual a la actual
                 if (currentPassword.equals(newPassword)) {
-                    System.out.println("Error: La nueva contraseña no puede ser igual a la actual.");
                     ctx.close();
-                    return false;
-
+                    return "La nueva contraseña no puede ser igual a las ultimas 5 contraseñas.";
                 }
 
-                // Prepara los cambios para la nueva contraseña
+                // Modificación de la contraseña en LDAP
                 ModificationItem[] mods = new ModificationItem[1];
                 Attribute mod = new BasicAttribute("userPassword", newPassword);
                 mods[0] = new ModificationItem(DirContext.REPLACE_ATTRIBUTE, mod);
-
-                // Realiza la modificación en LDAP
                 ctx.modifyAttributes(dn, mods);
 
-                // Verificación: Leer la contraseña para asegurarse de que el cambio se realizó
+                // Verificación de cambio de contraseña
                 attrs = ctx.getAttributes(dn, new String[]{"userPassword"});
                 String updatedPassword = new String((byte[]) attrs.get("userPassword").get());
 
+                ctx.close();
+
                 if (updatedPassword.equals(newPassword)) {
-                    System.out.println("La contraseña se actualizó correctamente.");
-                    ctx.close();
-                    return true;
+                    return "Contraseña actualizada correctamente.";
                 } else {
-                    System.out.println("Error: la contraseña no se actualizó correctamente.");
-                    ctx.close();
-                    return false;
+                    return "No se pudo actualizar la contraseña.";
                 }
+
             } catch (NamingException e) {
-                System.out.println("Error al actualizar la contraseña en LDAP: " + e.getMessage());
-                e.printStackTrace();
-                return false;
+                return "Por favor verifica que el usuario y el dominio sean correctos";
             }
         }
-        /////////////////////////////////////////////////////////
-        //metodos para validar las ultimas 5 contraseñas///
+      
 
         // Método para obtener las últimas N contraseñas desde la base de datos
         private List<String> getLastNPasswords(String userName, int n) {
@@ -218,43 +298,31 @@ public class ReloadPasswordService {
             }
         }
     
-    /////////////////////////////////////////////////////////
-    
     // Método para capturar el email de usuario
-    public String findPropertyByAccountName2(String userName, String property) {
+    public String findPropertyByAccountName2(String encryptedUserName, String property) throws Exception {
+        String userName = decryptAES(encryptedUserName);
+        
         return Ldap.findPropertyByAccountName2(userName, property);
     }
     // Método para enviar el email de usuario
-     public void sendPasswordResetEmail(String userEmail, String userName, String requestUrl) {
+     public void sendPasswordResetEmail(String userEmail, String encryptedUserName, String requestUrl) throws Exception {
         System.out.println("Iniciando el proceso de envío de correo...");
+        String userName = decryptAES(encryptedUserName);
+        
         String template = loadEmailTemplate("templates/reset_password_template.html");
         
         if (template != null) {
-            // Cargar imágenes y convertirlas a Base64
-            
-            String imageHeader = encodeImageToBase64("templates/clientes.png");
-            String imageContent = encodeImageToBase64("templates/candado.jpg"); // Otra imagen si la necesitas
 
-            if (imageHeader.isEmpty() || imageContent.isEmpty()) {
-                System.out.println("Error: No se pudo cargar una o más imágenes.");
-                return;
-            }
-
-            String emailContent = template.replace("{userName}", userName)
-                                          .replace("{requestUrl}", requestUrl)
-                                          .replace("{imageHeader}", imageHeader)
-                                          .replace("{imageContent}", imageContent);
-            /*
             String emailContent = template.replace("{userName}", userName)
                                           .replace("{requestUrl}", requestUrl);
-            */
+           
 
             System.out.println("Preparando el correo con los siguientes datos:");
             System.out.println("Destinatario: " + userEmail);
-            System.out.println("Asunto: Reestablecer Clave BMX ACTIVOS S.A.");
+            System.out.println("Asunto: Reestablecer Clave BMX");
             System.out.println("Contenido del correo: " + emailContent);
 
-            Ldap.sendMail("notificacion@activos.com.co", userEmail, "Reestablecer Clave BMX ACTIVOS S.A.", emailContent);
+            Ldap.sendMail("notificacion@activos.com.co", userEmail, "Reestablecer Clave BMX", emailContent);
             System.out.println("Correo enviado.");
         } else {
             System.out.println("Error: No se pudo cargar la plantilla de correo.");
@@ -271,36 +339,6 @@ public class ReloadPasswordService {
             e.printStackTrace();
             return null;
         }
-    }
-
-    private String encodeImageToBase64(String imagePath) {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream(imagePath)) {
-            if (is == null) {
-                System.out.println("Error: No se pudo encontrar la imagen en la ruta especificada: " + imagePath);
-                return "";
-            }
-            byte[] imageBytes = toByteArray(is);
-
-            String base64Image = Base64.getEncoder().encodeToString(imageBytes);
-            System.out.println("Imagen cargada y convertida exitosamente a Base64.");
-            return "data:image/png;base64," + base64Image;
-        } catch (IOException e) {
-            System.out.println("Error al cargar la imagen: " + e.getMessage());
-            e.printStackTrace();
-            return "";
-        }
-    }
-
-    // Método auxiliar para convertir InputStream a byte[] (compatible con Java 8)
-    private byte[] toByteArray(InputStream is) throws IOException {
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        int nRead;
-        byte[] data = new byte[16384];
-        while ((nRead = is.read(data, 0, data.length)) != -1) {
-            buffer.write(data, 0, nRead);
-        }
-        buffer.flush();
-        return buffer.toByteArray();
     }
 
 }

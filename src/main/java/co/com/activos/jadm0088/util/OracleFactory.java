@@ -15,8 +15,7 @@ public class OracleFactory {
     
     static Connection conexion;
 
-    //private static final String DATASOURCE_NAME = "jdbc/DS_Desa";
-    private static final String DATASOURCE_NAME = "DS_DSWEBUSER_Acti";
+    private static final String DATASOURCE_NAME = "DS_Intrauser_Acti";
 
     public static void cerrarConexion(Connection conexion) {
         try {
@@ -28,12 +27,13 @@ public class OracleFactory {
             sqlExeption.getCause().printStackTrace();
         }
     }
- /*
-    public static Connection getConexion() {
+
+/*
+        public static Connection getConexion() {
         try {
             DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
             //conexion = DriverManager.getConnection("jdbc:oracle:thin:@(DESCRIPTION=(LOAD_BALANCE=off)(FAILOVER=on)(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.59)(PORT=1521))(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.59)(PORT=1521))(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.59)(PORT=1521)))(CONNECT_DATA=(SERVICE_NAME=DESA)))" ,"SANTIAHERNANDEZ" ,"desa1234");
-                conexion = DriverManager.getConnection("jdbc:oracle:thin:@(DESCRIPTION=(LOAD_BALANCE=off)(FAILOVER=on)(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.59)(PORT=1521))(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.59)(PORT=1521))(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.59)(PORT=1521)))(CONNECT_DATA=(SERVICE_NAME=DESA)))" ,"KPAZ", "desa123");
+                conexion = DriverManager.getConnection("jdbc:oracle:thin:@(DESCRIPTION=(LOAD_BALANCE=off)(FAILOVER=on)(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.59)(PORT=1521))(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.59)(PORT=1521))(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.59)(PORT=1521)))(CONNECT_DATA=(SERVICE_NAME=DESA)))" ,"KPAZ", "desa1234");
             //conexion = DriverManager.getConnection("jdbc:oracle:thin:@(DESCRIPTION=(LOAD_BALANCE=off)(FAILOVER=on)(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.147)(PORT=1521))(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.147)(PORT=1521))(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.21.147)(PORT=1521)))(CONNECT_DATA=(SERVICE_NAME=TEST)))", "JUPATARROYO", "");
 
         } catch (SQLException sqlE) {
@@ -42,7 +42,8 @@ public class OracleFactory {
             e.printStackTrace();
         }
         return conexion;
-    }//*/
+    }
+//*/
     public static void setConexion(Connection conexion) {
         OracleFactory.conexion = conexion;
     }//*/
@@ -52,7 +53,7 @@ public class OracleFactory {
      *
      * @return
      */
-    
+
     public static Connection getConexion() {
         try {
             InitialContext ic = new InitialContext();
