@@ -80,6 +80,9 @@ public class ReloadPasswordRS {
         if (resultado == null || resultado.isEmpty()){
             return Response.status(Response.Status.BAD_REQUEST).entity("el usuario no existe").build();
         }
+        if(resultado.startsWith("Error")){
+            return Response.status(Response.Status.CONFLICT).entity(resultado).build();
+        }
         return Response.ok(resultado).build();
         
     }

@@ -155,6 +155,9 @@ public class ldapConexion implements LdapInterface {
                 searchResult = (SearchResult) results.nextElement();
                 Attributes attributes = searchResult.getAttributes();
                 Attribute groupCn = attributes.get(property);
+                if(groupCn.get() == null){
+                    return "Error: no se ha configurado un valor en el ldap para la propiedad "+(property.equalsIgnoreCase("mail") ? "correo" : property);
+                }
                 String mail = "" + groupCn.get();
 
                 result = mail;
