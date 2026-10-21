@@ -21,6 +21,7 @@ import javax.naming.directory.ModificationItem;
 import co.com.activos.jadm0088.model.DominioSAAS;
 import co.com.activos.jadm0088.controller.Ldap;
 import co.com.activos.jadm0088.controller.View;
+import co.com.activos.jadm0088.controller.RedirectConfigDAO;
 import co.com.activos.jadm0088.util.OracleFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -41,6 +42,15 @@ import javax.naming.directory.Attributes;
 public class ReloadPasswordService {
 
     private static final String SECRET_KEY = "JADM0088SECRETKY"; // de 16 caracteres para AES-128 esto lo mando desde el front
+    private final RedirectConfigDAO redirectConfigDAO = new RedirectConfigDAO();
+
+    public String obtenerUrlRedireccion(String emp) throws SQLException {
+        if (emp == null || !emp.trim().matches("[0-9]+")) {
+            throw new IllegalArgumentException("El identificador de empresa no es valido.");
+        }
+
+        return redirectConfigDAO.obtenerUrlRedireccion(emp.trim());
+    }
 
     // Método para desencriptar
     public static String decryptAES(String encryptedText) throws Exception {

@@ -16,6 +16,27 @@ public class ReloadPasswordRS {
     
     private final ReloadPasswordService reloadPasswordService = new ReloadPasswordService();
 
+    @GET
+    @Path("/redirect-url/{emp}")
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response obtenerUrlRedireccion(@PathParam("emp") String emp) {
+        try {
+            String url = reloadPasswordService.obtenerUrlRedireccion(emp);
+            return Response.ok(url, MediaType.TEXT_PLAIN).build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .type(MediaType.TEXT_PLAIN)
+                    .entity(e.getMessage())
+                    .build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .type(MediaType.TEXT_PLAIN)
+                    .entity("No fue posible obtener la URL de redireccion.")
+                    .build();
+        }
+    }
+
     // Endpoint para crear una solicitud de restablecimiento de contraseña
     @POST
     @Path("/request")
